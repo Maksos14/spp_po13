@@ -197,33 +197,30 @@ class FractalRenderer:
                 self.turtle_obj.right(90)
                 self._draw_segment(new_len, level - 1)
 
-    def draw_fractal(self, root, progress_callback, info_callback):
-        self.close_window()
-
-        level = self.params.level.get()
-        side_length = self.params.length.get()
-
+    def _setup_window(self, root, level, bg_color):
         self.turtle_window = tk.Toplevel(root)
         self.turtle_window.title(f"Minkowski Island (level {level})")
         self.turtle_window.geometry("700x700")
         self.turtle_window.protocol("WM_DELETE_WINDOW", self.close_window)
 
-        self.canvas = tk.Canvas(self.turtle_window, bg=self.params.bg_color, highlightthickness=0)
+        self.canvas = tk.Canvas(self.turtle_window, bg=bg_color, highlightthickness=0)
         self.canvas.pack(fill=tk.BOTH, expand=True)
-
         self.turtle_window.update()
 
+    def _setup_turtle(self, speed, color, pen_size):
         self.turtle_obj = turtle.RawTurtle(self.canvas)
-        self.turtle_obj.speed(self.params.speed.get())
-        self.turtle_obj.pencolor(self.params.color)
-        self.turtle_obj.pensize(self.params.pen_size.get())
+        self.turtle_obj.speed(speed)
+        self.turtle_obj.pencolor(color)
+        self.turtle_obj.pensize(pen_size)
         self.turtle_obj.penup()
 
+    def _setup_coordinates(self):
         canvas_width = self.canvas.winfo_width()
         canvas_height = self.canvas.winfo_height()
-
         self.turtle_obj.screen.setworldcoordinates(0, canvas_height, canvas_width, 0)
+        return canvas_width, canvas_height
 
+    def _calculate_start_position(self, level, side_length, canvas_width, canvas_height):
         if level == 0:
             fractal_size = side_length
         else:
@@ -231,10 +228,33 @@ class FractalRenderer:
 
         start_x = (canvas_width - fractal_size) / 2
         start_y = (canvas_height - fractal_size) / 2
+        return start_x, start_y, fractal_size
+
+    def _draw_fractal_sides(self, side_length, level, progress_callback, root):
+        for side in range(4):
+            if not self.is_drawing:
+                break
+            self._draw_segment(side_length, level)
+            if not self.is_drawing:
+                break
+            self.turtle_obj.right(90)
+            progress_callback(f"Side {side + 1}/4")
+            root.update()
+
+    def draw_fractal(self, root, progress_callback, info_callback):
+        self.close_window()
+
+        level = self.params.level.get()
+        side_length = self.params.length.get()
+
+        self._setup_window(root, level, self.params.bg_color)
+        self._setup_turtle(self.params.speed.get(), self.params.color, self.params.pen_size.get())
+        canvas_width, canvas_height = self._setup_coordinates()
+        start_x, start_y, fractal_size = self._calculate_start_position(level, side_length, canvas_width, canvas_height)
 
         self.turtle_obj.goto(start_x, start_y)
 
-        info_text = f"Level: {level} | Side length: {side_length}px | " f"Size: {fractal_size:.0f}px"
+        info_text = f"Level: {level} | Side length: {side_length}px | Size: {fractal_size:.0f}px"
         self.canvas.create_text(canvas_width // 2, 20, text=info_text, fill="gray", font=("Arial", 10))
 
         self.turtle_obj.pendown()
@@ -243,23 +263,12 @@ class FractalRenderer:
         root.update()
 
         try:
-            for side in range(4):
-                if not self.is_drawing:
-                    break
-                self._draw_segment(side_length, level)
-                if not self.is_drawing:
-                    break
-                self.turtle_obj.right(90)
-                progress_callback(f"Side {side + 1}/4")
-                root.update()
-
+            self._draw_fractal_sides(side_length, level, progress_callback, root)
             self.turtle_obj.hideturtle()
             progress_callback("Fractal ready")
             info_callback(level, side_length)
-
         except (RuntimeError, AttributeError):
             progress_callback("Error during drawing")
-
         finally:
             self.is_drawing = False
 
